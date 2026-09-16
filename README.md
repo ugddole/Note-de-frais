@@ -58,7 +58,34 @@ ensuite promouvoir ou rétrograder d'autres membres depuis la page "Membres".
 4. Le trésorier peut exporter l'ensemble des notes en CSV (séparateur `;`,
    compatible Excel) pour la comptabilité de l'association.
 
-## Déploiement en production
+## Déploiement sur Railway
+
+Le projet contient déjà les fichiers nécessaires (`Procfile`, `nixpacks.toml`,
+`gunicorn` dans `requirements.txt`).
+
+1. Mettre le dossier dans un dépôt GitHub (Railway se connecte à un repo).
+2. Sur [railway.app](https://railway.app), créer un nouveau projet →
+   "Deploy from GitHub repo" → sélectionner le dépôt.
+3. Railway détecte `nixpacks.toml` et installe automatiquement
+   `tesseract-ocr` + `tesseract-ocr-fra` en plus des paquets Python.
+4. Dans l'onglet **Variables** du service, ajouter :
+   - `SECRET_KEY` : une valeur aléatoire longue (obligatoire, ne pas garder
+     la valeur par défaut du code).
+5. **Important — stockage persistant** : par défaut, le système de fichiers
+   de Railway est effacé à chaque redéploiement. Or la base SQLite
+   (`notes_de_frais.db`) et les photos de justificatifs (`uploads/`) sont
+   stockées sur disque. Pour ne pas tout perdre au prochain déploiement :
+   - Dans l'onglet **Volumes** du service, créer un volume et le monter sur
+     `/app` (ou au minimum sur `/app/uploads`, mais garder aussi le fichier
+     `.db` sur le volume).
+   - Alternative plus robuste à terme : ajouter une base **PostgreSQL**
+     (plugin Railway) plutôt que SQLite — demande une adaptation du code
+     de `app.py`, à faire si l'association grandit ou si plusieurs
+     instances tournent en parallèle.
+6. Railway génère une URL publique (`https://....up.railway.app`) —
+   c'est le lien à partager avec les membres et le trésorier.
+
+## Déploiement en production (autre hébergeur)
 
 Pour un vrai déploiement (accessible en ligne, pas seulement en local) :
 

@@ -173,7 +173,10 @@ def run_ocr(image_path):
         img = Image.open(image_path)
         img = ImageOps.exif_transpose(img)  # corrige l'orientation des photos de téléphone
         img = img.convert("L")  # niveaux de gris, améliore l'OCR sur tickets
-        text = pytesseract.image_to_string(img, lang="eng")
+        try:
+            text = pytesseract.image_to_string(img, lang="fra")  # pack français si installé
+        except pytesseract.TesseractError:
+            text = pytesseract.image_to_string(img, lang="eng")  # repli si "fra" absent
     except Exception:
         return "", None, None
 
