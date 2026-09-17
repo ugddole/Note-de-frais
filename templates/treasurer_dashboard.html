@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Trésorerie{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Trésorerie</h1>
+    <a href="{{ url_for('export_csv') }}" class="btn btn-ghost">⬇ Exporter en CSV</a>
+</div>
+
+<div class="stat-row">
+    {% for c in counts %}
+    <div class="stat-card stat-{{ c.status }}">
+        <span class="stat-value">{{ "%.2f"|format(c.total) }} €</span>
+        <span class="stat-label">{{ {
+            'pending': 'En attente', 'approved': 'Validées',
+            'rejected': 'Refusées', 'reimbursed': 'Remboursées'
+        }[c.status] }} ({{ c.n }})</span>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="filter-tabs">
+    <a href="{{ url_for('treasurer_dashboard', status='pending') }}" class="{{ 'active' if status_filter == 'pending' }}">En attente</a>
+    <a href="{{ url_for('treasurer_dashboard', status='approved') }}" class="{{ 'active' if status_filter == 'approved' }}">Validées</a>
+    <a href="{{ url_for('treasurer_dashboard', status='reimbursed') }}" class="{{ 'active' if status_filter == 'reimbursed' }}">Remboursées</a>
+    <a href="{{ url_for('treasurer_dashboard', status='rejected') }}" class="{{ 'active' if status_filter == 'rejected' }}">Refusées</a>
+    <a href="{{ url_for('treasurer_dashboard', status='all') }}" class="{{ 'active' if status_filter == 'all' }}">Toutes</a>
+</div>
+
+{% if expenses %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Membre</th>
+            <th>Catégorie</th>
+            <th>Montant</th>
+            <th>Statut</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for e in expenses %}
+        <tr onclick="window.location='{{ url_for('expense_detail', expense_id=e.id) }}'" class="clickable-row">
+            <td>{{ e.expense_date }}</td>
+            <td>{{ e.full_name }}</td>
+            <td>{{ e.category }}</td>
+            <td>{{ "%.2f"|format(e.amount) if e.amount else "—" }} €</td>
+            <td><span class="badge badge-{{ e.status }}">{{ {
+                'pending': 'En attente', 'approved': 'Validée',
+                'rejected': 'Refusée', 'reimbursed': 'Remboursée'
+            }[e.status] }}</span></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="muted">Aucune note de frais dans cette catégorie.</p>
+{% endif %}
+{% endblock %}

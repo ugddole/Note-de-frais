@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Mes notes de frais{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Mes notes de frais</h1>
+    <a href="{{ url_for('submit_expense') }}" class="btn btn-primary">+ Nouvelle note</a>
+</div>
+
+<div class="stat-row">
+    <div class="stat-card stat-pending">
+        <span class="stat-value">{{ "%.2f"|format(totals.pending) }} €</span>
+        <span class="stat-label">En attente</span>
+    </div>
+    <div class="stat-card stat-approved">
+        <span class="stat-value">{{ "%.2f"|format(totals.approved) }} €</span>
+        <span class="stat-label">Validées</span>
+    </div>
+    <div class="stat-card stat-reimbursed">
+        <span class="stat-value">{{ "%.2f"|format(totals.reimbursed) }} €</span>
+        <span class="stat-label">Remboursées</span>
+    </div>
+</div>
+
+{% if expenses %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Catégorie</th>
+            <th>Description</th>
+            <th>Montant</th>
+            <th>Statut</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for e in expenses %}
+        <tr onclick="window.location='{{ url_for('expense_detail', expense_id=e.id) }}'" class="clickable-row">
+            <td>{{ e.expense_date }}</td>
+            <td>{{ e.category }}</td>
+            <td>{{ e.description or "—" }}</td>
+            <td>{{ "%.2f"|format(e.amount) if e.amount else "—" }} €</td>
+            <td><span class="badge badge-{{ e.status }}">{{ {
+                'pending': 'En attente', 'approved': 'Validée',
+                'rejected': 'Refusée', 'reimbursed': 'Remboursée'
+            }[e.status] }}</span></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="muted">Tu n'as pas encore soumis de note de frais.</p>
+{% endif %}
+{% endblock %}

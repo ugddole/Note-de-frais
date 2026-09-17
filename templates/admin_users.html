@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Membres{% endblock %}
+{% block content %}
+<h1>Membres de l'association</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Nom</th>
+            <th>Email</th>
+            <th>Rôle</th>
+            <th>Inscrit le</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for u in users %}
+        <tr>
+            <td>{{ u.full_name }}</td>
+            <td>{{ u.email }}</td>
+            <td><span class="badge badge-{{ 'approved' if u.role == 'treasurer' else 'pending' }}">
+                {{ 'Trésorier' if u.role == 'treasurer' else 'Membre' }}
+            </span></td>
+            <td>{{ u.created_at[:10] }}</td>
+            <td>
+                {% if u.id != current_user.id %}
+                <form method="post" action="{{ url_for('toggle_role', user_id=u.id) }}">
+                    <button type="submit" class="btn btn-ghost btn-small">
+                        {{ 'Rétrograder en membre' if u.role == 'treasurer' else 'Promouvoir trésorier' }}
+                    </button>
+                </form>
+                {% else %}
+                <span class="muted small">(toi)</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
