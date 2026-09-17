@@ -38,9 +38,13 @@ from werkzeug.utils import secure_filename
 # ----------------------------------------------------------------------------
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "notes_de_frais.db")
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp", "heic"}
+# STORAGE_DIR pointe vers le volume persistant Railway (ex: /data).
+# En local (pas de volume), on retombe sur le dossier du projet.
+STORAGE_DIR = os.environ.get("STORAGE_DIR", BASE_DIR)
+os.makedirs(STORAGE_DIR, exist_ok=True)
+DB_PATH = os.path.join(STORAGE_DIR, "notes_de_frais.db")
+UPLOAD_DIR = os.path.join(STORAGE_DIR, "uploads")
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp", "heic", "pdf"}
 MAX_CONTENT_LENGTH = 12 * 1024 * 1024  # 12 Mo par photo
 
 CATEGORIES = [
@@ -161,22 +165,63 @@ DATE_PATTERNS = [
 ]
 
 
-def run_ocr(image_path):
-    """Retourne (texte_brut, montant_detecte, date_detectee_iso)."""
+def _ocr_image_file(image_path_or_pil):
+    """Fait tourner Tesseract sur une image (chemin ou objet PIL déjà ouvert)."""
+    import pytesseract
+    from PIL import Image, ImageOps
+
+    if isinstance(image_path_or_pil, str):
+        img = Image.open(image_path_or_pil)
+        img = ImageOps.exif_transpose(img)  # corrige l'orientation des photos de téléphone
+    else:
+        img = image_path_or_pil
+    img = img.convert("L")  # niveaux de gris, améliore l'OCR sur tickets
     try:
-        import pytesseract
-        from PIL import Image, ImageOps
+        return pytesseract.image_to_string(img, lang="fra")  # pack français si installé
+    except pytesseract.TesseractError:
+        return pytesseract.image_to_string(img, lang="eng")  # repli si "fra" absent
+
+
+def _extract_pdf(pdf_path):
+    """Lit un PDF : texte natif si dispo (facture numérique), sinon OCR sur les pages rasterisées (PDF scanné)."""
+    import fitz  # PyMuPDF
+
+    text_parts = []
+    doc = fitz.open(pdf_path)
+    try:
+        # 1) Facture numérique : le texte est déjà présent dans le PDF
+        for page in doc:
+            page_text = page.get_text().strip()
+            if page_text:
+                text_parts.append(page_text)
+
+        native_text = "\n".join(text_parts).strip()
+        if len(native_text) >= 20:
+            return native_text
+
+        # 2) PDF scanné (image sans couche texte) : on rasterise et on passe par l'OCR
+        from PIL import Image
+
+        ocr_parts = []
+        for page in doc[:3]:  # 3 premières pages suffisent pour une facture/ticket
+            pix = page.get_pixmap(dpi=300)
+            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+            ocr_parts.append(_ocr_image_file(img))
+        return "\n".join(ocr_parts)
+    finally:
+        doc.close()
+
+
+def run_ocr(file_path):
+    """Retourne (texte_brut, montant_detecte, date_detectee_iso). Gère images et PDF."""
+    is_pdf = file_path.lower().endswith(".pdf")
+    try:
+        if is_pdf:
+            text = _extract_pdf(file_path)
+        else:
+            text = _ocr_image_file(file_path)
     except ImportError:
         return "", None, None
-
-    try:
-        img = Image.open(image_path)
-        img = ImageOps.exif_transpose(img)  # corrige l'orientation des photos de téléphone
-        img = img.convert("L")  # niveaux de gris, améliore l'OCR sur tickets
-        try:
-            text = pytesseract.image_to_string(img, lang="fra")  # pack français si installé
-        except pytesseract.TesseractError:
-            text = pytesseract.image_to_string(img, lang="eng")  # repli si "fra" absent
     except Exception:
         return "", None, None
 
@@ -345,7 +390,7 @@ def submit_expense():
                 flash("Choisis une photo du justificatif.", "danger")
                 return render_template("submit_expense.html", categories=CATEGORIES)
             if not allowed_file(file.filename):
-                flash("Format de fichier non supporté (photo JPG/PNG/WEBP attendue).", "danger")
+                flash("Format de fichier non supporté (photo JPG/PNG/WEBP ou PDF attendu).", "danger")
                 return render_template("submit_expense.html", categories=CATEGORIES)
 
             filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
