@@ -10,7 +10,7 @@
     <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="action" value="scan">
         <label>Photo du justificatif
-            <input type="file" name="photo" accept="image/*" capture="environment" required>
+            <input type="file" name="photo" accept="image/*,application/pdf" capture="environment" required>
         </label>
         <button type="submit" class="btn btn-primary">Analyser la photo</button>
     </form>
@@ -20,7 +20,11 @@
 <div class="card">
     <h2>2. Vérifie les informations</h2>
     <div class="scan-preview">
+        {% if ocr.filename.lower().endswith('.pdf') %}
+        <p class="receipt-thumb">📄 <a href="{{ url_for('uploaded_file', filename=ocr.filename) }}" target="_blank">Voir le PDF importé</a></p>
+        {% else %}
         <img src="{{ url_for('uploaded_file', filename=ocr.filename) }}" alt="Justificatif" class="receipt-thumb">
+        {% endif %}
         <div class="scan-note">
             {% if ocr.amount or ocr.date %}
                 <p class="muted small">✅ Montant et/ou date détectés automatiquement — vérifie-les avant de valider.</p>

@@ -5,7 +5,12 @@
 
 <div class="detail-grid">
     <div class="card">
+        {% if expense.photo_filename.lower().endswith('.pdf') %}
+        <embed src="{{ url_for('uploaded_file', filename=expense.photo_filename) }}" type="application/pdf" class="receipt-full" style="height:600px; width:100%;">
+        <p><a href="{{ url_for('uploaded_file', filename=expense.photo_filename) }}" target="_blank">Ouvrir le PDF dans un nouvel onglet</a></p>
+        {% else %}
         <img src="{{ url_for('uploaded_file', filename=expense.photo_filename) }}" alt="Justificatif" class="receipt-full">
+        {% endif %}
     </div>
 
     <div class="card">
