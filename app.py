@@ -87,6 +87,7 @@ def init_db():
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL DEFAULT 'member',  -- 'member' ou 'treasurer'
+            rib TEXT,
             created_at TEXT NOT NULL
         );
 
@@ -107,6 +108,10 @@ def init_db():
         );
         """
     )
+    # Migration : ajoute la colonne rib si la base existait déjà (avant cette fonctionnalité)
+    existing_cols = [row[1] for row in db.execute("PRAGMA table_info(users)").fetchall()]
+    if "rib" not in existing_cols:
+        db.execute("ALTER TABLE users ADD COLUMN rib TEXT")
     db.commit()
     db.close()
 
@@ -283,9 +288,15 @@ def register():
         full_name = request.form.get("full_name", "").strip()
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
+        rib = request.form.get("rib", "").strip().upper().replace(" ", "")
 
         if not full_name or not email or len(password) < 6:
             flash("Merci de remplir tous les champs (mot de passe : 6 caractères minimum).", "danger")
+            return render_template("register.html")
+
+        # RIB (IBAN) : format simple, obligatoire pour permettre le remboursement
+        if not rib or len(rib) < 14:
+            flash("Merci de renseigner un RIB / IBAN valide pour être remboursé(e).", "danger")
             return render_template("register.html")
 
         db = get_db()
@@ -298,8 +309,8 @@ def register():
         role = "treasurer" if nb_users == 0 else "member"
 
         db.execute(
-            "INSERT INTO users (full_name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)",
-            (full_name, email, generate_password_hash(password), role, datetime.utcnow().isoformat()),
+            "INSERT INTO users (full_name, email, password_hash, role, rib, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (full_name, email, generate_password_hash(password), role, rib, datetime.utcnow().isoformat()),
         )
         db.commit()
 
@@ -487,22 +498,42 @@ def uploaded_file(filename):
 def treasurer_dashboard():
     db = get_db()
     status_filter = request.args.get("status", "pending")
-    if status_filter == "all":
-        query = """SELECT e.*, u.full_name FROM expenses e JOIN users u ON u.id = e.user_id
-                    ORDER BY e.created_at DESC"""
-        params = ()
-    else:
-        query = """SELECT e.*, u.full_name FROM expenses e JOIN users u ON u.id = e.user_id
-                    WHERE e.status = ? ORDER BY e.created_at DESC"""
-        params = (status_filter,)
+    category_filter = request.args.get("category", "")
+    member_filter = request.args.get("member_id", "")
+
+    query = """SELECT e.*, u.full_name FROM expenses e JOIN users u ON u.id = e.user_id WHERE 1 = 1"""
+    params = []
+
+    if status_filter != "all":
+        query += " AND e.status = ?"
+        params.append(status_filter)
+
+    if category_filter:
+        query += " AND e.category = ?"
+        params.append(category_filter)
+
+    if member_filter:
+        query += " AND e.user_id = ?"
+        params.append(member_filter)
+
+    query += " ORDER BY e.created_at DESC"
     expenses = db.execute(query, params).fetchall()
 
     counts = db.execute(
         "SELECT status, COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM expenses GROUP BY status"
     ).fetchall()
 
+    members = db.execute("SELECT id, full_name FROM users ORDER BY full_name ASC").fetchall()
+
     return render_template(
-        "treasurer_dashboard.html", expenses=expenses, counts=counts, status_filter=status_filter
+        "treasurer_dashboard.html",
+        expenses=expenses,
+        counts=counts,
+        status_filter=status_filter,
+        category_filter=category_filter,
+        member_filter=member_filter,
+        categories=CATEGORIES,
+        members=members,
     )
 
 
@@ -531,16 +562,16 @@ def update_expense_status(expense_id):
 def export_csv():
     db = get_db()
     expenses = db.execute(
-        """SELECT e.*, u.full_name, u.email FROM expenses e JOIN users u ON u.id = e.user_id
+        """SELECT e.*, u.full_name, u.email, u.rib FROM expenses e JOIN users u ON u.id = e.user_id
            ORDER BY e.expense_date ASC"""
     ).fetchall()
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=";")
-    writer.writerow(["Date", "Membre", "Email", "Catégorie", "Description", "Montant (€)", "Statut", "Commentaire"])
+    writer.writerow(["Date", "Membre", "Email", "RIB", "Catégorie", "Description", "Montant (€)", "Statut", "Commentaire"])
     for e in expenses:
         writer.writerow([
-            e["expense_date"], e["full_name"], e["email"], e["category"],
+            e["expense_date"], e["full_name"], e["email"], e["rib"] or "", e["category"],
             e["description"] or "", f"{e['amount']:.2f}" if e["amount"] else "",
             e["status"], e["reviewer_comment"] or "",
         ])
