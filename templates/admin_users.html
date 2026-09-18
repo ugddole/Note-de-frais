@@ -8,6 +8,7 @@
         <tr>
             <th>Nom</th>
             <th>Email</th>
+            <th>RIB</th>
             <th>Rôle</th>
             <th>Inscrit le</th>
             <th></th>
@@ -18,6 +19,7 @@
         <tr>
             <td>{{ u.full_name }}</td>
             <td>{{ u.email }}</td>
+            <td>{{ u.rib or '—' }}</td>
             <td><span class="badge badge-{{ 'approved' if u.role == 'treasurer' else 'pending' }}">
                 {{ 'Trésorier' if u.role == 'treasurer' else 'Membre' }}
             </span></td>

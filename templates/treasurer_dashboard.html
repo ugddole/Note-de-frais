@@ -19,12 +19,33 @@
 </div>
 
 <div class="filter-tabs">
-    <a href="{{ url_for('treasurer_dashboard', status='pending') }}" class="{{ 'active' if status_filter == 'pending' }}">En attente</a>
-    <a href="{{ url_for('treasurer_dashboard', status='approved') }}" class="{{ 'active' if status_filter == 'approved' }}">Validées</a>
-    <a href="{{ url_for('treasurer_dashboard', status='reimbursed') }}" class="{{ 'active' if status_filter == 'reimbursed' }}">Remboursées</a>
-    <a href="{{ url_for('treasurer_dashboard', status='rejected') }}" class="{{ 'active' if status_filter == 'rejected' }}">Refusées</a>
-    <a href="{{ url_for('treasurer_dashboard', status='all') }}" class="{{ 'active' if status_filter == 'all' }}">Toutes</a>
+    <a href="{{ url_for('treasurer_dashboard', status='pending', category=category_filter, member_id=member_filter) }}" class="{{ 'active' if status_filter == 'pending' }}">En attente</a>
+    <a href="{{ url_for('treasurer_dashboard', status='approved', category=category_filter, member_id=member_filter) }}" class="{{ 'active' if status_filter == 'approved' }}">Validées</a>
+    <a href="{{ url_for('treasurer_dashboard', status='reimbursed', category=category_filter, member_id=member_filter) }}" class="{{ 'active' if status_filter == 'reimbursed' }}">Remboursées</a>
+    <a href="{{ url_for('treasurer_dashboard', status='rejected', category=category_filter, member_id=member_filter) }}" class="{{ 'active' if status_filter == 'rejected' }}">Refusées</a>
+    <a href="{{ url_for('treasurer_dashboard', status='all', category=category_filter, member_id=member_filter) }}" class="{{ 'active' if status_filter == 'all' }}">Toutes</a>
 </div>
+
+<form method="get" action="{{ url_for('treasurer_dashboard') }}" class="filter-form">
+    <input type="hidden" name="status" value="{{ status_filter }}">
+    <label>Catégorie
+        <select name="category" onchange="this.form.submit()">
+            <option value="">Toutes les catégories</option>
+            {% for c in categories %}
+            <option value="{{ c }}" {{ 'selected' if category_filter == c }}>{{ c }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>Membre
+        <select name="member_id" onchange="this.form.submit()">
+            <option value="">Tous les membres</option>
+            {% for m in members %}
+            <option value="{{ m.id }}" {{ 'selected' if member_filter == m.id|string }}>{{ m.full_name }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <noscript><button type="submit" class="btn btn-ghost btn-small">Filtrer</button></noscript>
+</form>
 
 {% if expenses %}
 <table class="table">
@@ -53,6 +74,6 @@
     </tbody>
 </table>
 {% else %}
-<p class="muted">Aucune note de frais dans cette catégorie.</p>
+<p class="muted">Aucune note de frais ne correspond à ces filtres.</p>
 {% endif %}
 {% endblock %}

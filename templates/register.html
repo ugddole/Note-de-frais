@@ -13,6 +13,9 @@
         <label>Mot de passe (6 caractères min.)
             <input type="password" name="password" required minlength="6">
         </label>
+        <label>RIB / IBAN
+            <input type="text" name="rib" placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX" required minlength="14">
+        </label>
         <button type="submit" class="btn btn-primary">Créer mon compte</button>
     </form>
     <p class="muted">Déjà inscrit(e) ? <a href="{{ url_for('login') }}">Connecte-toi</a></p>
