@@ -63,7 +63,7 @@
         <tr onclick="window.location='{{ url_for('expense_detail', expense_id=e.id) }}'" class="clickable-row">
             <td>{{ e.expense_date }}</td>
             <td>{{ e.full_name }}</td>
-            <td>{{ e.category }}</td>
+            <td>{% if e.expense_type == 'mileage' %}🚗 {% endif %}{{ e.category }}</td>
             <td>{{ "%.2f"|format(e.amount) if e.amount else "—" }} €</td>
             <td><span class="badge badge-{{ e.status }}">{{ {
                 'pending': 'En attente', 'approved': 'Validée',

@@ -58,6 +58,19 @@ ensuite promouvoir ou rétrograder d'autres membres depuis la page "Membres".
 4. Le trésorier peut exporter l'ensemble des notes en CSV (séparateur `;`,
    compatible Excel) pour la comptabilité de l'association.
 
+### Remboursement de frais kilométriques
+
+Depuis "+ Nouvelle note", le membre peut choisir **Remboursement de frais
+kilométriques** (pas de justificatif) : date, départ, arrivée, distance d'un
+trajet, aller-retour ou non, puissance fiscale du véhicule. Le montant est
+calculé automatiquement (km × taux du barème) et affiché avant l'envoi.
+
+Le trésorier règle les taux dans **Barème km** (par défaut : barème fiscal
+voitures, tranche jusqu'à 5 000 km/an). Le taux est figé sur chaque note au
+moment de la saisie : modifier le barème ne change pas les notes déjà
+envoyées. Le trajet, les km, la puissance et le taux apparaissent dans
+l'export CSV.
+
 ## Déploiement sur Railway
 
 Le projet contient déjà les fichiers nécessaires (`Procfile`, `nixpacks.toml`,

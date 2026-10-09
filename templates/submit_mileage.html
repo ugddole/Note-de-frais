@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Frais kilométriques{% endblock %}
+{% block content %}
+<h1>Remboursement de frais kilométriques</h1>
+
+<div class="card">
+    <p class="muted">Pas de justificatif à fournir : indique ton trajet, le montant est calculé avec le barème kilométrique de l'association.</p>
+
+    <form method="post" id="mileage-form">
+        <label>Date du déplacement
+            <input type="date" name="expense_date" value="{{ form.expense_date }}" required>
+        </label>
+
+        <div class="form-row">
+            <label>Départ
+                <input type="text" name="departure" value="{{ form.departure }}" placeholder="Ex : Dole" required>
+            </label>
+            <label>Arrivée
+                <input type="text" name="arrival" value="{{ form.arrival }}" placeholder="Ex : Besançon" required>
+            </label>
+        </div>
+
+        <div class="form-row">
+            <label>Distance d'un trajet (km)
+                <input type="number" name="distance_km" id="distance_km" step="0.1" min="0.1" max="5000"
+                       value="{{ form.distance_km }}" inputmode="decimal" required>
+            </label>
+            <label>Puissance fiscale du véhicule
+                <select name="fiscal_power" id="fiscal_power" required>
+                    <option value="">— Choisir —</option>
+                    {% for r in rates %}
+                    <option value="{{ r.code }}" data-rate="{{ r.rate }}" {{ 'selected' if form.fiscal_power == r.code }}>
+                        {{ r.label }} ({{ "%.3f"|format(r.rate)|replace('.', ',') }} €/km)
+                    </option>
+                    {% endfor %}
+                </select>
+            </label>
+        </div>
+        <p class="muted small">La puissance fiscale (CV) figure sur la carte grise, case P.6.</p>
+
+        <label class="checkbox-label">
+            <input type="checkbox" name="round_trip" value="1" id="round_trip" {{ 'checked' if form.round_trip }}>
+            Aller-retour (la distance est doublée)
+        </label>
+
+        <label>Motif du déplacement (optionnel)
+            <input type="text" name="description" value="{{ form.description }}" placeholder="Ex : compétition régionale, accompagnement des gyms">
+        </label>
+
+        <div class="mileage-total" id="mileage-total" aria-live="polite">
+            <span class="muted small" id="mileage-calc">Renseigne la distance et la puissance pour voir le montant.</span>
+            <span class="stat-value" id="mileage-amount"></span>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Envoyer au trésorier</button>
+        <a href="{{ url_for('submit_expense') }}" class="btn btn-ghost">Annuler</a>
+    </form>
+</div>
+
+<script>
+(function () {
+    const dist = document.getElementById("distance_km");
+    const power = document.getElementById("fiscal_power");
+    const rt = document.getElementById("round_trip");
+    const calc = document.getElementById("mileage-calc");
+    const amount = document.getElementById("mileage-amount");
+    const fmt = (n, d) => n.toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+    function update() {
+        const d = parseFloat((dist.value || "").replace(",", "."));
+        const opt = power.options[power.selectedIndex];
+        const rate = opt ? parseFloat(opt.dataset.rate) : NaN;
+        if (!(d > 0) || isNaN(rate)) {
+            calc.textContent = "Renseigne la distance et la puissance pour voir le montant.";
+            amount.textContent = "";
+            return;
+        }
+        const km = d * (rt.checked ? 2 : 1);
+        calc.textContent = fmt(km, 1) + " km × " + fmt(rate, 3) + " €/km =";
+        amount.textContent = fmt(Math.round(km * rate * 100) / 100, 2) + " €";
+    }
+    [dist, power, rt].forEach(el => el.addEventListener("input", update));
+    power.addEventListener("change", update);
+    update();
+})();
+</script>
+{% endblock %}

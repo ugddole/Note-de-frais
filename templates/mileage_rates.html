@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Barème kilométrique{% endblock %}
+{% block content %}
+<h1>Barème kilométrique</h1>
+
+<div class="card">
+    <p class="muted">Taux en euros par kilomètre, selon la puissance fiscale du véhicule. Par défaut : barème fiscal voitures (tranche jusqu'à 5 000 km par an). Un changement s'applique aux prochaines saisies, pas aux notes déjà envoyées.</p>
+
+    <form method="post">
+        <table class="table">
+            <thead>
+                <tr><th>Puissance fiscale</th><th>Taux (€/km)</th></tr>
+            </thead>
+            <tbody>
+                {% for r in rates %}
+                <tr>
+                    <td>{{ r.label }}</td>
+                    <td>
+                        <input type="number" name="rate_{{ r.code }}" step="0.001" min="0" max="5"
+                               value="{{ '%.3f'|format(r.rate) }}" class="input-rate" required>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="submit" class="btn btn-primary">Enregistrer le barème</button>
+    </form>
+</div>
+{% endblock %}

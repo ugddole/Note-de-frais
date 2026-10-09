@@ -4,6 +4,14 @@
 <h1>Nouvelle note de frais</h1>
 
 {% if not ocr %}
+<a href="{{ url_for('submit_mileage') }}" class="card choice-card">
+    <span class="choice-icon">🚗</span>
+    <span>
+        <strong>Remboursement de frais kilométriques</strong><br>
+        <span class="muted small">Déplacement avec ton véhicule : pas de justificatif, le montant est calculé selon le barème.</span>
+    </span>
+</a>
+
 <div class="card">
     <h2>1. Photo du justificatif</h2>
     <p class="muted">Prends en photo ou importe le ticket/facture. Le montant et la date seront proposés automatiquement — tu pourras les corriger.</p>

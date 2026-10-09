@@ -37,7 +37,7 @@
         <tr onclick="window.location='{{ url_for('expense_detail', expense_id=e.id) }}'" class="clickable-row">
             <td>{{ e.expense_date }}</td>
             <td>{{ e.category }}</td>
-            <td>{{ e.description or "—" }}</td>
+            <td>{% if e.expense_type == 'mileage' %}🚗 {{ e.departure }} → {{ e.arrival }}{% if e.round_trip %} (A/R){% endif %}{% if e.description %} — {{ e.description }}{% endif %}{% else %}{{ e.description or "—" }}{% endif %}</td>
             <td>{{ "%.2f"|format(e.amount) if e.amount else "—" }} €</td>
             <td><span class="badge badge-{{ e.status }}">{{ {
                 'pending': 'En attente', 'approved': 'Validée',

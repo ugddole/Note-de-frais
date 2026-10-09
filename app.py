@@ -52,6 +52,20 @@ CATEGORIES = [
     "Communication", "Événement", "Adhésion / licence", "Autre",
 ]
 
+# Catégorie attribuée automatiquement aux remboursements kilométriques
+MILEAGE_CATEGORY = "Frais kilométriques"
+
+# Barème kilométrique fiscal (voitures, tranche « jusqu'à 5 000 km / an »), en €/km.
+# Valeurs par défaut au premier lancement : le trésorier peut les modifier
+# depuis la page « Barème km » sans toucher au code.
+DEFAULT_MILEAGE_RATES = [
+    ("3", "3 CV et moins", 0.529),
+    ("4", "4 CV", 0.606),
+    ("5", "5 CV", 0.636),
+    ("6", "6 CV", 0.665),
+    ("7", "7 CV et plus", 0.697),
+]
+
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "change-moi-en-production")
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
@@ -106,12 +120,41 @@ def init_db():
             reviewed_at TEXT,
             FOREIGN KEY (user_id) REFERENCES users (id)
         );
+
+        CREATE TABLE IF NOT EXISTS mileage_rates (
+            code TEXT PRIMARY KEY,      -- puissance fiscale ('3' .. '7')
+            label TEXT NOT NULL,
+            rate REAL NOT NULL,         -- €/km
+            sort_order INTEGER NOT NULL DEFAULT 0
+        );
         """
     )
     # Migration : ajoute la colonne rib si la base existait déjà (avant cette fonctionnalité)
     existing_cols = [row[1] for row in db.execute("PRAGMA table_info(users)").fetchall()]
     if "rib" not in existing_cols:
         db.execute("ALTER TABLE users ADD COLUMN rib TEXT")
+
+    # Migration : colonnes des frais kilométriques sur une base existante
+    expense_cols = [row[1] for row in db.execute("PRAGMA table_info(expenses)").fetchall()]
+    mileage_cols = {
+        "expense_type": "TEXT NOT NULL DEFAULT 'receipt'",  # 'receipt' (justificatif) ou 'mileage'
+        "departure": "TEXT",
+        "arrival": "TEXT",
+        "distance_km": "REAL",       # distance d'un trajet simple
+        "round_trip": "INTEGER NOT NULL DEFAULT 0",
+        "fiscal_power": "TEXT",      # code du barème (ex : '5')
+        "rate_per_km": "REAL",       # taux appliqué au moment de la saisie
+    }
+    for col, ddl in mileage_cols.items():
+        if col not in expense_cols:
+            db.execute(f"ALTER TABLE expenses ADD COLUMN {col} {ddl}")
+
+    # Barème par défaut au premier lancement
+    if db.execute("SELECT COUNT(*) FROM mileage_rates").fetchone()[0] == 0:
+        db.executemany(
+            "INSERT INTO mileage_rates (code, label, rate, sort_order) VALUES (?, ?, ?, ?)",
+            [(code, label, rate, i) for i, (code, label, rate) in enumerate(DEFAULT_MILEAGE_RATES)],
+        )
     db.commit()
     db.close()
 
@@ -155,6 +198,20 @@ def treasurer_required(view):
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def get_mileage_rates():
+    return get_db().execute(
+        "SELECT * FROM mileage_rates ORDER BY sort_order, code"
+    ).fetchall()
+
+
+def parse_number(raw):
+    """Convertit '12,5' ou '12.5' en float ; None si vide ou invalide."""
+    try:
+        return float((raw or "").replace(",", ".").strip())
+    except ValueError:
+        return None
 
 
 # ----------------------------------------------------------------------------
@@ -462,6 +519,95 @@ def submit_expense():
     return render_template("submit_expense.html", categories=CATEGORIES, ocr=ocr_result)
 
 
+@app.route("/nouvelle-note/kilometrique", methods=["GET", "POST"])
+@login_required
+def submit_mileage():
+    """Remboursement de frais kilométriques : pas de justificatif, montant calculé avec le barème."""
+    user = current_user()
+    db = get_db()
+    rates = get_mileage_rates()
+    rates_by_code = {r["code"]: r for r in rates}
+
+    # Pré-remplit la puissance fiscale avec celle utilisée la dernière fois
+    last = db.execute(
+        "SELECT fiscal_power FROM expenses WHERE user_id = ? AND expense_type = 'mileage' "
+        "ORDER BY created_at DESC LIMIT 1",
+        (user["id"],),
+    ).fetchone()
+    form = {
+        "expense_date": datetime.now().strftime("%Y-%m-%d"),
+        "departure": "", "arrival": "", "distance_km": "",
+        "round_trip": True, "fiscal_power": last["fiscal_power"] if last else "",
+        "description": "",
+    }
+
+    if request.method == "POST":
+        form = {
+            "expense_date": request.form.get("expense_date", ""),
+            "departure": request.form.get("departure", "").strip(),
+            "arrival": request.form.get("arrival", "").strip(),
+            "distance_km": request.form.get("distance_km", ""),
+            "round_trip": request.form.get("round_trip") == "1",
+            "fiscal_power": request.form.get("fiscal_power", ""),
+            "description": request.form.get("description", "").strip(),
+        }
+        distance = parse_number(form["distance_km"])
+        rate_row = rates_by_code.get(form["fiscal_power"])
+
+        errors = []
+        if not form["expense_date"]:
+            errors.append("la date")
+        if not form["departure"] or not form["arrival"]:
+            errors.append("le lieu de départ et d'arrivée")
+        if distance is None or distance <= 0 or distance > 5000:
+            errors.append("une distance valide (en km)")
+        if not rate_row:
+            errors.append("la puissance fiscale du véhicule")
+
+        if errors:
+            flash("Merci de renseigner " + ", ".join(errors) + ".", "danger")
+        else:
+            total_km = distance * (2 if form["round_trip"] else 1)
+            rate = rate_row["rate"]
+            amount = round(total_km * rate, 2)
+            db.execute(
+                """INSERT INTO expenses
+                   (user_id, category, description, amount, expense_date, status, created_at,
+                    expense_type, departure, arrival, distance_km, round_trip, fiscal_power, rate_per_km)
+                   VALUES (?, ?, ?, ?, ?, 'pending', ?, 'mileage', ?, ?, ?, ?, ?, ?)""",
+                (
+                    user["id"], MILEAGE_CATEGORY, form["description"], amount, form["expense_date"],
+                    datetime.utcnow().isoformat(), form["departure"], form["arrival"],
+                    round(distance, 1), 1 if form["round_trip"] else 0, form["fiscal_power"], rate,
+                ),
+            )
+            db.commit()
+            flash(f"Frais kilométriques envoyés au trésorier : {amount:.2f} € ✅", "success")
+            return redirect(url_for("member_dashboard"))
+
+    return render_template("submit_mileage.html", rates=rates, form=form)
+
+
+@app.route("/bareme-km", methods=["GET", "POST"])
+@treasurer_required
+def mileage_rates():
+    db = get_db()
+    rates = get_mileage_rates()
+    if request.method == "POST":
+        updated = 0
+        for r in rates:
+            value = parse_number(request.form.get(f"rate_{r['code']}"))
+            if value is None or value < 0 or value > 5:
+                flash(f"Taux invalide pour « {r['label']} ».", "danger")
+                return render_template("mileage_rates.html", rates=rates)
+            db.execute("UPDATE mileage_rates SET rate = ? WHERE code = ?", (round(value, 3), r["code"]))
+            updated += 1
+        db.commit()
+        flash("Barème kilométrique mis à jour (s'applique aux prochaines saisies).", "success")
+        return redirect(url_for("mileage_rates"))
+    return render_template("mileage_rates.html", rates=rates)
+
+
 @app.route("/note/<int:expense_id>")
 @login_required
 def expense_detail(expense_id):
@@ -532,7 +678,7 @@ def treasurer_dashboard():
         status_filter=status_filter,
         category_filter=category_filter,
         member_filter=member_filter,
-        categories=CATEGORIES,
+        categories=CATEGORIES + [MILEAGE_CATEGORY],
         members=members,
     )
 
@@ -568,11 +714,24 @@ def export_csv():
 
     output = io.StringIO()
     writer = csv.writer(output, delimiter=";")
-    writer.writerow(["Date", "Membre", "Email", "RIB", "Catégorie", "Description", "Montant (€)", "Statut", "Commentaire"])
+    writer.writerow([
+        "Date", "Membre", "Email", "RIB", "Catégorie", "Description",
+        "Trajet", "Km total", "Puissance (CV)", "Taux (€/km)",
+        "Montant (€)", "Statut", "Commentaire",
+    ])
     for e in expenses:
+        is_mileage = e["expense_type"] == "mileage"
+        if is_mileage:
+            km_total = (e["distance_km"] or 0) * (2 if e["round_trip"] else 1)
+            trajet = f"{e['departure']} → {e['arrival']}" + (" (aller-retour)" if e["round_trip"] else "")
         writer.writerow([
             e["expense_date"], e["full_name"], e["email"], e["rib"] or "", e["category"],
-            e["description"] or "", f"{e['amount']:.2f}" if e["amount"] else "",
+            e["description"] or "",
+            trajet if is_mileage else "",
+            f"{km_total:.1f}".replace(".", ",") if is_mileage else "",
+            e["fiscal_power"] or "" if is_mileage else "",
+            f"{e['rate_per_km']:.3f}".replace(".", ",") if is_mileage and e["rate_per_km"] is not None else "",
+            f"{e['amount']:.2f}" if e["amount"] else "",
             e["status"], e["reviewer_comment"] or "",
         ])
 

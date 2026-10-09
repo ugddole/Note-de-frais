@@ -223,3 +223,37 @@ form input, form select {
 @media (max-width: 700px) {
     .detail-grid { grid-template-columns: 1fr; }
 }
+
+/* --- Frais kilométriques --- */
+.choice-card {
+    display: flex;
+    gap: 0.9rem;
+    align-items: center;
+    text-decoration: none;
+    color: inherit;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border);
+    transition: border-color 0.15s, background 0.15s;
+}
+.choice-card:hover { border-color: var(--primary); background: #f1f5f1; }
+.choice-icon { font-size: 1.8rem; line-height: 1; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+@media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+
+form .checkbox-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+form .checkbox-label input { width: auto; margin: 0; }
+
+.mileage-total {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.8rem 1rem;
+    margin: 0.5rem 0 1rem;
+    border-radius: 8px;
+    background: #eef1ec;
+}
+.mileage-total .stat-value { font-size: 1.4rem; }
+
+form .input-rate { max-width: 8rem; margin: 0; }
